@@ -12,12 +12,18 @@ BATTERY = 0  # ADC0, A0
 BUZZER = 14  # GPIO14, D5
 
 # Resistors in voltage divider (ohms)
+# NodeMcu internal resister divider (from schematic)
+NODEMCU_RESISTOR_RATIO = (220 + 100) / 100
+# External resister divider
 R1 = 9970
-R2 = 994
+R2 = 9990
 RESISTOR_RATIO = (R1 + R2) / R2
 
 # ADC Reference voltage in Millivolts
-ADC_REF = 3292  # Measured between 3.3V and GND pins
+ADC_REF = 1000
+# Average value from 100 reads when A0 is grounded
+ADC_OFFSET = 3
+# Number of ADC reads to take average of
 ADC_READS = 30
 
 GATE_STATUS_TOPIC = b"back-gate/status"
@@ -76,7 +82,8 @@ def battery_voltage():
     sum = 0
     for x in range(0, ADC_READS):
         sum += adc.read()
-    return ADC_REF * RESISTOR_RATIO * (sum / ADC_READS) / 1024 / 1000
+    return ADC_REF * NODEMCU_RESISTOR_RATIO * RESISTOR_RATIO * \
+        (sum / ADC_READS - ADC_OFFSET) / 1024 / 1000
 
 
 def switch_off():
