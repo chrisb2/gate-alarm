@@ -14,12 +14,12 @@ BATTERY = 0  # ADC0, A0
 # Resistors in voltage divider (ohms)
 # NodeMcu internal resister divider (from schematic)
 NODEMCU_RESISTOR_RATIO = (220 + 100) / 100
-# External resister divider
-R1 = 9970
+# External resister divider (ohms)
+R1 = 15960
 R2 = 9990
 RESISTOR_RATIO = (R1 + R2) / R2
 
-# ADC Reference voltage in Millivolts
+# ADC Reference voltage in millivolts
 ADC_REF = 1000
 # Average value from 100 reads when A0 is grounded
 ADC_OFFSET = 3
@@ -34,7 +34,6 @@ on_for_update = False
 def device_control(topic, msg):
     global on_for_update
     on_for_update = True
-    print((topic, msg))
 
 
 def run_gate():
@@ -42,13 +41,16 @@ def run_gate():
 
     c = MQTTClient("gate_client", secrets.MQTT_BROKER)
     c.set_callback(device_control)
-    c.connect(clean_session=False)
-    c.publish(topic.GATE_STATUS, msg_payload())
-    c.subscribe(topic.GATE_UPDATE, qos=1)
-    c.check_msg()
-    c.disconnect()
+    try:
+        c.connect(clean_session=False)
+        c.publish(topic.GATE_STATUS, msg_payload())
+        c.subscribe(topic.GATE_UPDATE, qos=1)
+        c.check_msg()
+        c.disconnect()
 
-    flash_led(LED1)
+        flash_led(LED1)
+    except OSError as e:
+        print("mqtt error", e)
 
     if not on_for_update:
         switch_off()
