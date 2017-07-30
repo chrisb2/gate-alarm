@@ -9,7 +9,7 @@ import secrets
 BUZZER = 14  # GPIO14, D5
 LED2 = 2     # GPIO2, D4, ESP8266 led
 
-REQUEST_FORMAT = "https://api.thingspeak.com/update?api_key={}&{}"
+URL_FORMAT = "https://api.thingspeak.com/update?api_key={}&{}"
 
 
 def gate_alarm(topic, msg):
@@ -21,27 +21,29 @@ def gate_alarm(topic, msg):
 def run_base():
     mqtt_client = MQTTClient("gate_base_client", secrets.MQTT_BROKER)
     mqtt_client.set_callback(gate_alarm)
-    _connect_mqtt_session(mqtt_client)
+    connect_mqtt_session(mqtt_client)
     mqtt_client.subscribe(topic.GATE_STATUS)
     while True:
         try:
             mqtt_client.wait_msg()
         except OSError as e:
+            print('MQTT wait failed, reconnecting...', e)
             sleep(5)
-            _connect_mqtt_session(mqtt_client)
+            connect_mqtt_session(mqtt_client)
 
 
-def _connect_mqtt_session(client):
+def connect_mqtt_session(client):
     client.connect(clean_session=False)
 
 
 def send_to_thingspeak(msg):
-    request = REQUEST_FORMAT.format(secrets.THINGSPEAK_API_KEY, msg)
+    url = URL_FORMAT.format(secrets.THINGSPEAK_API_KEY, msg)
     try:
-        urequests.get(request)
-    except Exception:
+        req = urequests.get(url)
+        req.close()
+    except Exception as e:
         # Ignore so that program continues running
-        pass
+        print('Send to thingspeak failed', e)
 
 
 def sound_alarm():
