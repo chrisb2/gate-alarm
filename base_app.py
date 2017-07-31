@@ -9,11 +9,13 @@ import secrets
 BUZZER = 14  # GPIO14, D5
 LED2 = 2     # GPIO2, D4, ESP8266 led
 
-URL_FORMAT = "https://api.thingspeak.com/update?api_key={}&{}"
+THINGSPEAK_URL = "https://api.thingspeak.com/update?api_key={}&{}"
+IFTTT_URL = "https://maker.ifttt.com/trigger/gate/with/key/{}"
 
 
 def gate_alarm(topic, msg):
     flash_led(LED2)
+    send_to_ifttt()
     send_to_thingspeak(msg.decode('ascii').strip())
     sound_alarm()
 
@@ -37,13 +39,22 @@ def connect_mqtt_session(client):
 
 
 def send_to_thingspeak(msg):
-    url = URL_FORMAT.format(secrets.THINGSPEAK_API_KEY, msg)
+    url = THINGSPEAK_URL.format(secrets.THINGSPEAK_API_KEY, msg)
+    http_get(url)
+
+
+def send_to_ifttt():
+    url = IFTTT_URL.format(secrets.IFTTT_API_KEY)
+    http_get(url)
+
+
+def http_get(url):
     try:
         req = urequests.get(url)
         req.close()
     except Exception as e:
         # Ignore so that program continues running
-        print('Send to thingspeak failed', e)
+        print('HTTP get failed', e)
 
 
 def sound_alarm():
