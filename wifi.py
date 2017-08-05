@@ -2,11 +2,10 @@ import network
 from utime import ticks_ms, ticks_diff, sleep
 import secrets
 
-MAX_RETRIES = 10
+WIFI_DELAY = 5
 
 
 def connect():
-    retries = 0
     start = ticks_ms()
 
     print('Connecting to network...')
@@ -15,11 +14,13 @@ def connect():
     ap_if.active(False)
 
     sta_if = network.WLAN(network.STA_IF)
-    sta_if.connect(secrets.WIFI_SSID, secrets.WIFI_PASSPHRASE)
-    while not sta_if.isconnected() and retries < MAX_RETRIES:
-        # Limit network access retries
-        retries += 1
+    secs = WIFI_DELAY
+    while secs >= 0 and not sta_if.isconnected():
         sleep(1)
+        secs -= 1
+    if not sta_if.isconnected():
+        print('Re-connecting %s ...' % secrets.WIFI_SSID)
+        sta_if.connect(secrets.WIFI_SSID, secrets.WIFI_PASSPHRASE)
 
     if sta_if.isconnected():
         print('Network, address: %s in %d ms' %
