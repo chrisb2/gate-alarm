@@ -1,41 +1,71 @@
-from mqtt import MQTTClient
-from machine import Pin, PWM
-from utime import sleep, sleep_ms
+from mqtt_as import MQTTClient
+import uasyncio as asyncio
+import ubinascii
+from machine import Pin, PWM, unique_id
 import urequests
-import topic
 import secrets
+import topic
+
+CLIENT_ID = ubinascii.hexlify(unique_id())
+MQTTClient.DEBUG = True  # Optional: print diagnostic messages
 
 # Pin constants
-BUZZER = 14  # GPIO14, D5
-LED2 = 2     # GPIO2, D4, ESP8266 led
+_BUZZER = 14  # GPIO14, D5
+_LED1 = 16    # GPIO16, D0, Nodemcu led
+_LED2 = 2     # GPIO2, D4, ESP8266 led
 
 THINGSPEAK_URL = "https://api.thingspeak.com/update?api_key={}&{}"
 IFTTT_URL = "https://maker.ifttt.com/trigger/gate/with/key/{}"
 
-
-def gate_alarm(topic, msg):
-    flash_led(LED2)
-    send_to_ifttt()
-    send_to_thingspeak(msg.decode('ascii').strip())
-    sound_alarm()
+loop = asyncio.get_event_loop()
+blue_led = Pin(_LED2, Pin.OUT, value=1)
+live_led = Pin(_LED1, Pin.OUT, value=1)
 
 
 def run_base():
-    mqtt_client = MQTTClient("gate_base_client", secrets.MQTT_BROKER)
-    mqtt_client.set_callback(gate_alarm)
-    connect_mqtt_session(mqtt_client)
-    mqtt_client.subscribe(topic.GATE_STATUS)
+    client = MQTTClient(mqtt_config, CLIENT_ID, secrets.MQTT_BROKER)
+    try:
+        loop.create_task(alive_signal())
+        loop.run_until_complete(main(client))
+    finally:
+        client.close()  # Prevent LmacRxBlk:1 errors
+
+
+async def alive_signal():
     while True:
-        try:
-            mqtt_client.wait_msg()
-        except OSError as e:
-            print('MQTT wait failed, reconnecting...', e)
-            sleep(5)
-            connect_mqtt_session(mqtt_client)
+        live_led(False)
+        await asyncio.sleep_ms(50)
+        live_led(True)
+        await asyncio.sleep(5)
 
 
-def connect_mqtt_session(client):
-    client.connect(clean_session=False)
+async def signal_alarm():
+    blue_led(False)
+    await asyncio.sleep(1)
+    blue_led(True)
+
+
+async def raise_alarm(msg):
+    send_to_ifttt()
+    await asyncio.sleep_ms(100)
+    send_to_thingspeak(msg)
+
+
+def callback(topic, msg):
+    msg_str = msg.decode('ascii').strip()
+    loop.create_task(signal_alarm())
+    loop.create_task(raise_alarm(msg_str))
+    loop.create_task(sound_alarm())
+
+
+async def conn_han(client):
+    await client.subscribe(topic.GATE_STATUS)
+
+
+async def main(client):
+    await client.connect()
+    while True:
+        await asyncio.sleep(5)
 
 
 def send_to_thingspeak(msg):
@@ -57,15 +87,13 @@ def http_get(url):
         print('HTTP get failed', e)
 
 
-def sound_alarm():
-    pwm = PWM(Pin(BUZZER), freq=500, duty=512)
-    sleep(5)
+async def sound_alarm():
+    pwm = PWM(Pin(_BUZZER), freq=500, duty=512)
+    await asyncio.sleep(5)
     pwm.deinit()
 
 
-def flash_led(pin, count=1):
-    pin = Pin(pin, Pin.OUT)
-    pin.on()
-    for x in range(0, count * 2):
-        pin.value(not pin.value())
-        sleep_ms(100)
+mqtt_config = {
+    'subs_cb': callback,
+    'connect_coro': conn_han,
+}
