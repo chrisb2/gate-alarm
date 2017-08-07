@@ -6,24 +6,25 @@ import urequests
 import secrets
 import topic
 
-CLIENT_ID = ubinascii.hexlify(unique_id())
-MQTTClient.DEBUG = True  # Optional: print diagnostic messages
+_CLIENT_ID = ubinascii.hexlify(unique_id())
 
 # Pin constants
 _BUZZER = 14  # GPIO14, D5
 _LED1 = 16    # GPIO16, D0, Nodemcu led
 _LED2 = 2     # GPIO2, D4, ESP8266 led
 
-THINGSPEAK_URL = "https://api.thingspeak.com/update?api_key={}&{}"
-IFTTT_URL = "https://maker.ifttt.com/trigger/gate/with/key/{}"
+_THINGSPEAK_URL = "https://api.thingspeak.com/update?api_key={}&{}"
+_IFTTT_URL = "https://maker.ifttt.com/trigger/gate/with/key/{}"
+
+MQTTClient.DEBUG = True  # Optional: print diagnostic messages
 
 loop = asyncio.get_event_loop()
-blue_led = Pin(_LED2, Pin.OUT, value=1)
+msg_led = Pin(_LED2, Pin.OUT, value=1)
 live_led = Pin(_LED1, Pin.OUT, value=1)
 
 
 def run_base():
-    client = MQTTClient(mqtt_config, CLIENT_ID, secrets.MQTT_BROKER)
+    client = MQTTClient(mqtt_config, _CLIENT_ID, secrets.MQTT_BROKER)
     try:
         loop.create_task(alive_signal())
         loop.run_until_complete(main(client))
@@ -34,27 +35,28 @@ def run_base():
 async def alive_signal():
     while True:
         live_led(False)
-        await asyncio.sleep_ms(50)
+        await asyncio.sleep_ms(30)
         live_led(True)
         await asyncio.sleep(5)
 
 
 async def signal_alarm():
-    blue_led(False)
+    msg_led(False)
     await asyncio.sleep(1)
-    blue_led(True)
+    msg_led(True)
 
 
-async def raise_alarm(msg):
-    send_to_ifttt()
-    await asyncio.sleep_ms(100)
-    send_to_thingspeak(msg)
+async def sound_alarm():
+    pwm = PWM(Pin(_BUZZER), freq=500, duty=512)
+    await asyncio.sleep(5)
+    pwm.deinit()
 
 
 def callback(topic, msg):
     msg_str = msg.decode('ascii').strip()
     loop.create_task(signal_alarm())
-    loop.create_task(raise_alarm(msg_str))
+    loop.create_task(send_to_ifttt())
+    loop.create_task(send_to_thingspeak(msg_str))
     loop.create_task(sound_alarm())
 
 
@@ -68,13 +70,15 @@ async def main(client):
         await asyncio.sleep(5)
 
 
-def send_to_thingspeak(msg):
-    url = THINGSPEAK_URL.format(secrets.THINGSPEAK_API_KEY, msg)
+async def send_to_thingspeak(msg):
+    url = _THINGSPEAK_URL.format(secrets.THINGSPEAK_API_KEY, msg)
+    await asyncio.sleep(0)
     http_get(url)
 
 
-def send_to_ifttt():
-    url = IFTTT_URL.format(secrets.IFTTT_API_KEY)
+async def send_to_ifttt():
+    url = _IFTTT_URL.format(secrets.IFTTT_API_KEY)
+    await asyncio.sleep(0)
     http_get(url)
 
 
@@ -85,12 +89,6 @@ def http_get(url):
     except Exception as e:
         # Ignore so that program continues running
         print('HTTP get failed', e)
-
-
-async def sound_alarm():
-    pwm = PWM(Pin(_BUZZER), freq=500, duty=512)
-    await asyncio.sleep(5)
-    pwm.deinit()
 
 
 mqtt_config = {
