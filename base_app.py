@@ -16,7 +16,7 @@ _LED2 = 2     # GPIO2, D4, ESP8266 led
 _THINGSPEAK_URL = "https://api.thingspeak.com/update?api_key={}&{}"
 _IFTTT_URL = "https://maker.ifttt.com/trigger/gate/with/key/{}"
 
-MQTTClient.DEBUG = True  # Optional: print diagnostic messages
+MQTTClient.DEBUG = False  # Optional: print diagnostic messages
 
 loop = asyncio.get_event_loop()
 msg_led = Pin(_LED2, Pin.OUT, value=1)
@@ -26,13 +26,13 @@ live_led = Pin(_LED1, Pin.OUT, value=1)
 def run_base():
     client = MQTTClient(mqtt_config, _CLIENT_ID, secrets.MQTT_BROKER)
     try:
-        loop.create_task(alive_signal())
+        loop.create_task(signal_alive())
         loop.run_until_complete(main(client))
     finally:
         client.close()  # Prevent LmacRxBlk:1 errors
 
 
-async def alive_signal():
+async def signal_alive():
     while True:
         live_led(False)
         await asyncio.sleep_ms(30)

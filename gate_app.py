@@ -1,3 +1,4 @@
+"""Gate alarm application."""
 from utime import sleep_ms
 import webrepl
 from mqtt import MQTTClient
